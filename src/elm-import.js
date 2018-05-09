@@ -1,7 +1,5 @@
 import {MDCIconToggle} from '@material/icon-toggle';
-// import {MDCRipple} from '@material/ripple';
 
-var app;
 document.addEventListener('DOMContentLoaded', function() {
     var div = document.getElementById('main');
     const app = Elm.Main.embed(div);
@@ -15,7 +13,6 @@ document.addEventListener('DOMContentLoaded', function() {
       requestAnimationFrame( () => {
         document.querySelectorAll('.toggle-btn').forEach(function(el) {
           MDCIconToggle.attachTo(el);
-          // const buttonRipple = new MDCRipple(el);
           el.addEventListener('MDCIconToggle:change', ({detail}) => {
             var nodeId = el.getAttribute('node-id');
             app.ports.toggleExpand.send(nodeId);
