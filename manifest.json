@@ -1,0 +1,20 @@
+{
+    "manifest_version": 2,
+
+    "name": "Elm Bookmark Extension",
+    "description": "This is a basic tool to manage bookmarks written in Elm",
+    "version": "1.0",
+
+    "browser_action": {
+    },
+
+    "background": {
+      "scripts": ["background.js"]
+    },
+
+    "permissions": [
+      "activeTab",
+      "bookmarks",
+      "tabs"
+    ]
+  }

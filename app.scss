@@ -1,0 +1,11 @@
+@import "@material/button/mdc-button";
+
+.toggle-btn {
+  @include mdc-ripple-surface;
+  @include mdc-ripple-radius-bounded(10px);
+  @include mdc-states;
+}
+
+.parent-entry {
+  font-weight: bold;
+}
