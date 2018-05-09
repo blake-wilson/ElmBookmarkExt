@@ -48,9 +48,6 @@ map f tree =
       Node v lst ->
           Node (f v) (List.map (\n -> (map f n) ) lst)
 
-
-type Children = Children (List BookmarkNode)
-
 type Msg =
     HandleBookmarks (Result String (Tree BookmarkNode))
     | CollapseNode (String)
