@@ -4,16 +4,11 @@ var plumber = require('gulp-plumber');
 var webpack = require('webpack');
 
 var paths = {
-	dest: 'dist',
-	source: './src/**/*.elm',
+  dest: 'dist',
+  source: './src/**/*.elm',
   staticAssets: './*.css',
   wpAssets: ['./src/**/*.scss', './src/**/*.js']
 };
-
-function handleError(err) {
-	console.log(err.toString());
-	this.emit('end');
-}
 
 gulp.task('elm-init', elm.init);
 
@@ -36,7 +31,7 @@ gulp.task('build-webpack', function() {
 });
 
 gulp.task('watch', function() {
-	gulp.watch([paths.source], ['elm-bundle']);
+  gulp.watch([paths.source], ['elm-bundle']);
   gulp.watch(paths.staticAssets, ['elm-bundle']);
   gulp.watch(paths.wpAssets, ['build-webpack']);
 });
