@@ -1,11 +1,13 @@
 var gulp = require('gulp');
 var elm  = require('gulp-elm');
 var plumber = require('gulp-plumber');
+var webpack = require('webpack');
 
 var paths = {
 	dest: 'dist',
 	source: './src/**/*.elm',
-	staticAssets: './*.css'
+  staticAssets: './*.css',
+  wpAssets: ['./src/**/*.scss', './src/**/*.js']
 };
 
 function handleError(err) {
@@ -29,9 +31,14 @@ gulp.task('elm-bundle', ['elm-init'], function(){
     .pipe(gulp.dest(paths.dest + '/'));
 });
 
+gulp.task('build-webpack', function() {
+  webpack(require('./webpack.config.js')).run((_) => console.log('Webpack complete'));
+});
+
 gulp.task('watch', function() {
 	gulp.watch([paths.source], ['elm-bundle']);
-	gulp.watch(paths.staticAssets, ['elm-bundle']);
+  gulp.watch(paths.staticAssets, ['elm-bundle']);
+  gulp.watch(paths.wpAssets, ['build-webpack']);
 });
 
 gulp.task('dev', ['elm-bundle', 'watch']);
