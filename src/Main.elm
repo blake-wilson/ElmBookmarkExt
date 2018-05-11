@@ -76,8 +76,8 @@ renderNode node =
         let icon =
             i [class "toggle-btn material-icons mdc-icon-toggle"
                  , attribute "role" "button"
-                 , attribute "data-toggle-on" """{"label": "Remove from favorites", "content": "add_circle_outline"}"""
-                 , attribute "data-toggle-off" """{"label": "Add to favorites", "content": "remove_circle_outline"}"""
+                 , attribute "data-toggle-on" """{"label": "Expand", "content": "arrow_right"}"""
+                 , attribute "data-toggle-off" """{"label": "Collapse", "content": "arrow_drop_down"}"""
                  , attribute "node-id" v.id ] []
             title = Maybe.withDefault "No Title" v.title
             isParent = not <| emptyChildren node
@@ -90,7 +90,11 @@ renderNode node =
         in
                 div []
                     [ if isParent
-                        then icon
+                        then
+                            div [] [
+                                i [ class "material-icons toggle-btn" ] [text "folder"]
+                                , icon
+                            ]
                       else
                         div [] []
                     , span [ class entryClass ] [ entry ]

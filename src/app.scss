@@ -4,6 +4,7 @@
   @include mdc-ripple-surface;
   @include mdc-ripple-radius-bounded(10px);
   @include mdc-states;
+  color: rgb(117, 117, 117);
 }
 
 .parent-entry {
