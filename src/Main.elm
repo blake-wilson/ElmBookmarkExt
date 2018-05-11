@@ -86,18 +86,18 @@ renderNode node =
                 Just url ->
                     a [href <| "#", onFollowLink (OpenTab <| url) ] [ text <| title ]
                 _ ->
-                    text <| title
+                    span [ class entryClass ] [ text title ]
         in
-                div []
+                div [ class "tree-element" ]
                     [ if isParent
                         then
                             div [] [
-                                i [ class "material-icons toggle-btn" ] [text "folder"]
-                                , icon
+                                icon
+                                , i [ class "material-icons tree-folder" ] [text "folder"]
+                                , entry
                             ]
                       else
-                        div [] []
-                    , span [ class entryClass ] [ entry ]
+                        entry
                     , div [ attribute "style" <| if v.collapsed then """display: none""" else "display: block" ] [
                           (ul [] <| List.map (\c -> renderNode c) lst)
                         ]
