@@ -1,7 +1,7 @@
 port module Main exposing (..)
 
 import Html exposing (Attribute, program, div, ul, i, a, span, input, button, text)
-import Html.Attributes exposing (href, class, type_, attribute)
+import Html.Attributes exposing (href, class, type_, target, attribute)
 import Html.Events exposing (onClick, on)
 import Json.Decode as Json
 import AnimationFrame
@@ -84,7 +84,7 @@ renderNode node =
             entryClass = if isParent then "parent-entry" else "leaf-entry"
             entry = case v.url of
                 Just url ->
-                    a [href <| "#", onFollowLink (OpenTab <| url) ] [ text <| title ]
+                    a [href url, target "_blank", onFollowLink (OpenTab <| url) ] [ text <| title ]
                 _ ->
                     span [ class entryClass ] [ text title ]
         in

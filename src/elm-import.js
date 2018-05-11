@@ -1,4 +1,5 @@
 import {MDCIconToggle} from '@material/icon-toggle';
+import html2canvas from 'html2canvas';
 
 document.addEventListener('DOMContentLoaded', function() {
     var div = document.getElementById('main');
@@ -21,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     })
     app.ports.openTab.subscribe(function(url) {
-        chrome.tabs.create({ url: url });
+        console.log('opened tab at ', url);
     });
     // Initialize bookmarks
     var tree = chrome.bookmarks.getTree(function(arr) {
