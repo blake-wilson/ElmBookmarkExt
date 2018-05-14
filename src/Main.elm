@@ -1,11 +1,20 @@
 port module Main exposing (..)
 
-import Html exposing (Attribute, program, div, ul, i, a, span, input, button, text)
+import Http
+import Html exposing (Attribute, program, div, ul, li, i, a, span, input, button, text)
 import Html.Attributes exposing (href, class, type_, target, attribute)
 import Html.Events exposing (onClick, on)
 import Json.Decode as Json
+import Json.Encode exposing (list, string)
 import AnimationFrame
 import Time
+
+backupEndpoint : String
+backupEndpoint = "https://ly4uzc77fh.execute-api.us-west-2.amazonaws.com/beta"
+
+importPath : String
+importPath =
+    "https://s3-us-west-2.amazonaws.com/yellowpapersun-bookmarks/"
 
 type alias Model =
     { bookmarks : Tree BookmarkNode
@@ -52,6 +61,8 @@ type Msg =
     HandleBookmarks (Result String (Tree BookmarkNode))
     | CollapseNode (String)
     | OpenTab String
+    | Backup String
+    | BackupResult (Result Http.Error String)
     | Tick Time.Time
     | ToggleExpand String
 
@@ -67,6 +78,11 @@ view model =
     div []
     [ renderNode model.bookmarks ]
 
+
+backupIcon : Html.Html Msg
+backupIcon =
+    i [ class "material-icons mdc-button__icon" ] [ text "backup" ]
+
 renderNode : Tree BookmarkNode -> Html.Html Msg
 renderNode node =
     case node of
@@ -74,7 +90,7 @@ renderNode node =
         div [] []
     Node v lst ->
         let icon =
-            i [class "toggle-btn material-icons mdc-icon-toggle"
+            i [ class "toggle-btn material-icons mdc-icon-toggle"
                  , attribute "role" "button"
                  , attribute "data-toggle-on" """{"label": "Expand", "content": "arrow_right"}"""
                  , attribute "data-toggle-off" """{"label": "Collapse", "content": "arrow_drop_down"}"""
@@ -84,24 +100,39 @@ renderNode node =
             entryClass = if isParent then "parent-entry" else "leaf-entry"
             entry = case v.url of
                 Just url ->
-                    a [href url, target "_blank", onFollowLink (OpenTab <| url) ] [ text <| title ]
+                    a [href url, target "_blank", onFollowLink (OpenTab <| url) ]
+                    [ text <| title ]
                 _ ->
                     span [ class entryClass ] [ text title ]
         in
-                div [ class "tree-element" ]
-                    [ if isParent
-                        then
-                            div [] [
-                                icon
-                                , i [ class "material-icons tree-folder" ] [text "folder"]
-                                , entry
+                    div [ class "tree-element" ]
+                        [ if isParent
+                            then
+                                div [] [
+                                    icon
+                                    , i [ class "material-icons tree-folder" ] [text "folder"]
+                                    , entry
+                                ]
+                        else
+                            li [ class "mdc-list-item bookmark-item" ] [
+                                span [ class "mdc-list-item__text" ] [
+                                    entry
+                                ]
+                                , span [ class "mdc-list-item__meta" ] [
+                                    button [ class "mdc_button", onClick <| Backup (Maybe.withDefault "" v.url) ] [
+                                        backupIcon
+                                    ]
+                                ]
                             ]
-                      else
-                        entry
-                    , div [ attribute "style" <| if v.collapsed then """display: none""" else "display: block" ] [
-                          (ul [] <| List.map (\c -> renderNode c) lst)
+                            , div [ attribute "style" <| if v.collapsed then """display: none""" else "display: block" ] [
+                            (ul [ class "mdc-list mdc-list--dense" ] <| List.map (\c -> renderNode c) lst)
+                            ]
                         ]
-                    ]
+
+backupAddress : String -> Http.Request String
+backupAddress url =
+    Http.post backupEndpoint (Http.jsonBody (string <| "{url:" ++ url ++ "}")) decodeBackup 
+    -- Http.post backupEndpoint Http.emptyBody (decodeBackup)
 
 main : Program Never Model Msg
 main = program
@@ -138,6 +169,11 @@ bookmark =
         )
         (withDefault [Empty] (Json.field "children" (Json.list (Json.lazy (\_ -> bookmark)))))
 
+
+decodeBackup : Json.Decoder String
+decodeBackup =
+    Json.field "body" Json.string
+
 decodeBookmarks : Json.Value -> Result String (Tree BookmarkNode)
 decodeBookmarks =
     let _ = Debug.log "decoding" "children" in
@@ -151,6 +187,8 @@ init =
     }
   , Cmd.none
   )
+
+port backup : String -> Cmd msg
 
 port openTab : String -> Cmd msg
 
@@ -169,8 +207,7 @@ update msg model =
         let _ = Debug.log "opening tab" url in
         (model, openTab url )
     HandleBookmarks (Ok bookmarks) ->
-        let _ = Debug.log "bookmarks" <| toString bookmarks in
-            ({model | bookmarks = bookmarks, rerender = True}, Cmd.none)
+        ({model | bookmarks = bookmarks, rerender = True}, Cmd.none)
     HandleBookmarks (Err err) ->
         let _ = Debug.log "Uh oh" err in
             (model, Cmd.none)
@@ -179,6 +216,13 @@ update msg model =
         ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed} else n ) ) model.bookmarks }, Cmd.none)
     CollapseNode id ->
         ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed} else n ) ) model.bookmarks }, Cmd.none)
+    Backup url ->
+        ( model, Http.send BackupResult <| backupAddress url )
+    BackupResult (Result.Ok imgKey) ->
+        (model, openTab <| importPath ++ imgKey)
+    BackupResult (Err err) ->
+        let _ = Debug.log "Error backing up bookmark" err in
+            (model, Cmd.none)
     Tick t ->
         if model.rerender then
             ({ model | rerender = False }, reRender "")

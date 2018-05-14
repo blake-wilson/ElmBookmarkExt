@@ -23,6 +23,7 @@
   "dependencies": {
     "@material/button": "^0.35.0",
     "@material/icon-toggle": "^0.35.0",
+    "@material/list": "^0.35.0",
     "gulp": "^3.9.1",
     "gulp-elm": "^0.7.2",
     "gulp-plumber": "^1.2.0",

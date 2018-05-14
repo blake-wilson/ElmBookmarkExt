@@ -1,4 +1,5 @@
 @import "@material/button/mdc-button";
+@import "@material/list/mdc-list";
 
 .toggle-btn {
   @include mdc-ripple-surface;
@@ -7,12 +8,18 @@
   margin-right: 12px;
 }
 
+.bookmark-item {
+  padding-top: 0px;
+  padding-bottom: 0px;
+}
+
 .tree-folder {
   margin-right: 8px;
 }
 
 .tree-element {
   color: rgb(117, 117, 117);
+  margin-left: 40px;
 }
 
 .parent-entry {
