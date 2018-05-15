@@ -10,7 +10,7 @@ import AnimationFrame
 import Time
 
 backupEndpoint : String
-backupEndpoint = "https://ly4uzc77fh.execute-api.us-west-2.amazonaws.com/beta"
+backupEndpoint = "https://ly4uzc77fh.execute-api.us-west-2.amazonaws.com/beta/"
 
 importPath : String
 importPath =
@@ -131,8 +131,16 @@ renderNode node =
 
 backupAddress : String -> Http.Request String
 backupAddress url =
-    Http.post backupEndpoint (Http.jsonBody (string <| "{url:" ++ url ++ "}")) decodeBackup 
-    -- Http.post backupEndpoint Http.emptyBody (decodeBackup)
+    Http.request
+        {
+            method = "POST"
+            , headers = []
+            , url = backupEndpoint
+            , body = Http.stringBody "application/json" ("""{"url":""" ++ "\"" ++ url ++ "\"}")
+            , expect = Http.expectString
+            , timeout = Nothing
+            , withCredentials = False
+        }
 
 main : Program Never Model Msg
 main = program

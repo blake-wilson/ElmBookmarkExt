@@ -13,6 +13,8 @@
     },
 
     "permissions": [
+      "*://*.https://ly4uzc77fh.execute-api.us-west-2.amazonaws.com/beta/*",
+      "*://*.https://s3-us-west-2.amazonaws.com/yellowpapersun-bookmarks/*",
       "activeTab",
       "bookmarks",
       "tabs"
