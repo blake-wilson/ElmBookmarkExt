@@ -8,6 +8,7 @@ import Json.Decode as Json
 import Json.Encode exposing (list, string)
 import AnimationFrame
 import Time
+import Dict exposing (Dict)
 
 backupEndpoint : String
 backupEndpoint = "https://ly4uzc77fh.execute-api.us-west-2.amazonaws.com/beta/"
@@ -19,6 +20,7 @@ importPath =
 type alias Model =
     { bookmarks : Tree BookmarkNode
     , rerender : Bool
+    , currentlyBackingUp : Maybe String
     }
 
 type Tree a
@@ -48,6 +50,7 @@ type alias BookmarkNode =
   , title : Maybe String
   , collapsed : Bool
   , id : String
+  , backupLink : Maybe String
   }
 
 map : (a -> b) -> Tree a -> Tree b
@@ -59,9 +62,10 @@ map f tree =
 
 type Msg =
     HandleBookmarks (Result String (Tree BookmarkNode))
+    | HandleLinks (Result String (List (String, String)))
     | CollapseNode (String)
     | OpenTab String
-    | Backup String
+    | Backup String String
     | BackupResult (Result Http.Error String)
     | Tick Time.Time
     | ToggleExpand String
@@ -78,6 +82,10 @@ view model =
     div []
     [ renderNode model.bookmarks ]
 
+-- getS3URL returns the s3 URL for the given s3 key
+getS3URL : String -> String
+getS3URL s3Key =
+    importPath ++ s3Key
 
 backupIcon : Html.Html Msg
 backupIcon =
@@ -119,9 +127,13 @@ renderNode node =
                                     entry
                                 ]
                                 , span [ class "mdc-list-item__meta" ] [
-                                    button [ class "mdc_button", onClick <| Backup (Maybe.withDefault "" v.url) ] [
-                                        backupIcon
-                                    ]
+                                    case v.backupLink of
+                                        Nothing ->
+                                            button [ class "mdc_button", onClick <| Backup v.id (Maybe.withDefault "" v.url) ] [
+                                                backupIcon
+                                            ]
+                                        Just s3Key ->
+                                            a [href <| getS3URL s3Key, target "_blank"] [text "Open backup"]
                                 ]
                             ]
                             , div [ attribute "style" <| if v.collapsed then """display: none""" else "display: block" ] [
@@ -155,6 +167,7 @@ main = program
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch [ handleBookmarks (decodeBookmarks >> HandleBookmarks)
+              , handleLinks (decodeLink >> HandleLinks)
               , AnimationFrame.times Tick
               , toggleExpand ToggleExpand ]
 
@@ -169,11 +182,12 @@ withDefault default decoder =
 bookmark : Json.Decoder (Tree BookmarkNode)
 bookmark =
     Json.map2 Node
-        (Json.map4 BookmarkNode
+        (Json.map5 BookmarkNode
                 (Json.maybe (Json.field "url" Json.string))
                 (Json.maybe (Json.field "title" Json.string))
                 (Json.succeed False)
                 (Json.field "id" Json.string)
+                (Json.maybe (Json.field "backupLink" Json.string))
         )
         (withDefault [Empty] (Json.field "children" (Json.list (Json.lazy (\_ -> bookmark)))))
 
@@ -187,16 +201,25 @@ decodeBookmarks =
     let _ = Debug.log "decoding" "children" in
         Json.decodeValue bookmark
 
+decodeLink : Json.Value -> Result String (List (String, String))
+decodeLink =
+    Json.decodeValue linkDecoder
+
+linkDecoder : Json.Decoder (List (String, String))
+linkDecoder =
+    Json.keyValuePairs Json.string
+
 init : (Model, Cmd Msg)
 init =
   (
     { bookmarks = Empty
     , rerender = False
+    , currentlyBackingUp = Nothing
     }
   , Cmd.none
   )
 
-port backup : String -> Cmd msg
+port backup : (String, String) -> Cmd msg
 
 port openTab : String -> Cmd msg
 
@@ -205,6 +228,8 @@ port getBookmarks : String -> Cmd msg
 port reRender : String -> Cmd msg
 
 port handleBookmarks : (Json.Value -> msg) -> Sub msg
+
+port handleLinks : (Json.Value -> msg) -> Sub msg
 
 port toggleExpand : (String -> msg) -> Sub msg
 
@@ -218,16 +243,42 @@ update msg model =
         ({model | bookmarks = bookmarks, rerender = True}, Cmd.none)
     HandleBookmarks (Err err) ->
         let _ = Debug.log "Uh oh" err in
-            (model, Cmd.none)
+            model ! []
+    HandleLinks (Ok [(a,b)]) ->
+        let _ = Debug.log "setting node ID and link" [(a,b)] in
+        { model | bookmarks = map (\n ->
+            case n.backupLink of
+                Just _ ->
+                    n
+                _ ->
+                    let link =
+                    List.foldl (\(x, y) acc ->
+                        case acc of
+                            Just _ ->
+                                acc
+                            Nothing ->
+                                if x == n.id then Just y else Nothing
+                        ) Nothing [(a,b)] in
+            {n | backupLink = link }
+        ) model.bookmarks } ! []
+    HandleLinks (Ok _) ->
+        let _ = Debug.log "handle links default case" "default" in
+        model ! []
+    HandleLinks (Err err) ->
+        let _ = Debug.log "Error handling links" err in
+            model ! []
     ToggleExpand id ->
         let _ = (Debug.log "toggling" id) in
-        ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed} else n ) ) model.bookmarks }, Cmd.none)
+        ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
     CollapseNode id ->
-        ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed} else n ) ) model.bookmarks }, Cmd.none)
-    Backup url ->
-        ( model, Http.send BackupResult <| backupAddress url )
+        ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
+    Backup id url ->
+        ( { model | currentlyBackingUp = Just id }, Http.send BackupResult <| backupAddress url )
     BackupResult (Result.Ok imgKey) ->
-        (model, openTab <| importPath ++ imgKey)
+        ({ model | currentlyBackingUp = Nothing } , Cmd.batch [
+            backup (Maybe.withDefault "" model.currentlyBackingUp, imgKey)
+            , openTab <| importPath ++ imgKey
+            ])
     BackupResult (Err err) ->
         let _ = Debug.log "Error backing up bookmark" err in
             (model, Cmd.none)
