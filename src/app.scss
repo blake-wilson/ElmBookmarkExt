@@ -8,6 +8,16 @@
   margin-right: 12px;
 }
 
+.ripple-btn {
+  @include mdc-ripple-surface;
+  @include mdc-ripple-radius-bounded(18px);
+  @include mdc-states;
+}
+
+.backup-icon {
+  padding-left: 8px;
+}
+
 .bookmark-item {
   padding-top: 0px;
   padding-bottom: 0px;

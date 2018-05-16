@@ -1,4 +1,5 @@
 import {MDCIconToggle} from '@material/icon-toggle';
+import {MDCRipple} from '@material/ripple';
 import html2canvas from 'html2canvas';
 import { Z_DEFAULT_STRATEGY } from 'zlib';
 
@@ -16,6 +17,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     app.ports.reRender.subscribe(function() {
       requestAnimationFrame( () => {
+        document.querySelectorAll('.ripple-btn').forEach(function(el) {
+          MDCRipple.attachTo(el);
+        });
         document.querySelectorAll('.toggle-btn').forEach(function(el) {
           MDCIconToggle.attachTo(el);
           el.addEventListener('MDCIconToggle:change', ({detail}) => {

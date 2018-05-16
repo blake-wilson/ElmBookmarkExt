@@ -2,7 +2,7 @@ port module Main exposing (..)
 
 import Http
 import Html exposing (Attribute, program, div, ul, li, i, a, span, input, button, text)
-import Html.Attributes exposing (href, class, type_, target, attribute)
+import Html.Attributes exposing (href, class, type_, target, attribute, disabled)
 import Html.Events exposing (onClick, on)
 import Json.Decode as Json
 import Json.Encode exposing (list, string)
@@ -51,6 +51,7 @@ type alias BookmarkNode =
   , collapsed : Bool
   , id : String
   , backupLink : Maybe String
+  , loading : Bool
   }
 
 map : (a -> b) -> Tree a -> Tree b
@@ -89,7 +90,7 @@ getS3URL s3Key =
 
 backupIcon : Html.Html Msg
 backupIcon =
-    i [ class "material-icons mdc-button__icon" ] [ text "backup" ]
+    i [ class "backup-icon material-icons mdc-button__icon" ] [ text "backup" ]
 
 renderNode : Tree BookmarkNode -> Html.Html Msg
 renderNode node =
@@ -108,7 +109,7 @@ renderNode node =
             entryClass = if isParent then "parent-entry" else "leaf-entry"
             entry = case v.url of
                 Just url ->
-                    a [href url, target "_blank", onFollowLink (OpenTab <| url) ]
+                    a [ href url, target "_blank" ]
                     [ text <| title ]
                 _ ->
                     span [ class entryClass ] [ text title ]
@@ -129,8 +130,18 @@ renderNode node =
                                 , span [ class "mdc-list-item__meta" ] [
                                     case v.backupLink of
                                         Nothing ->
-                                            button [ class "mdc_button", onClick <| Backup v.id (Maybe.withDefault "" v.url) ] [
+                                            -- i [ class "toggle-btn material-icons"
+                                            --     , attribute "role" "button"
+                                            --     , attribute "data-toggle-on" """{"label": "Expand", "content": "backup"}"""
+                                            --     , attribute "data-toggle-off" """{"label": "Collapse", "content": "backup"}"""
+                                            --     , attribute "node-id" v.id
+                                            --     , disabled (if v.loading then True else False)
+                                            --     , onClick <| Backup v.id (Maybe.withDefault "" v.url) ] []
+                                            button [ class "ripple-btn mdc-button__icon mdc-button"
+                                                    , disabled (if v.loading then True else False)
+                                                    , onClick <| Backup v.id (Maybe.withDefault "" v.url) ] [
                                                 backupIcon
+                                                -- text "Flat"
                                             ]
                                         Just s3Key ->
                                             a [href <| getS3URL s3Key, target "_blank"] [text "Open backup"]
@@ -182,12 +193,13 @@ withDefault default decoder =
 bookmark : Json.Decoder (Tree BookmarkNode)
 bookmark =
     Json.map2 Node
-        (Json.map5 BookmarkNode
+        (Json.map6 BookmarkNode
                 (Json.maybe (Json.field "url" Json.string))
                 (Json.maybe (Json.field "title" Json.string))
                 (Json.succeed False)
                 (Json.field "id" Json.string)
                 (Json.maybe (Json.field "backupLink" Json.string))
+                (Json.succeed False)
         )
         (withDefault [Empty] (Json.field "children" (Json.list (Json.lazy (\_ -> bookmark)))))
 
@@ -233,6 +245,7 @@ port handleLinks : (Json.Value -> msg) -> Sub msg
 
 port toggleExpand : (String -> msg) -> Sub msg
 
+-- TODO: refactor the map list iteration in favor of id-indexed Dict
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
@@ -259,7 +272,7 @@ update msg model =
                             Nothing ->
                                 if x == n.id then Just y else Nothing
                         ) Nothing [(a,b)] in
-            {n | backupLink = link }
+            {n | loading = False, backupLink = link }
         ) model.bookmarks } ! []
     HandleLinks (Ok _) ->
         let _ = Debug.log "handle links default case" "default" in
@@ -273,11 +286,10 @@ update msg model =
     CollapseNode id ->
         ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
     Backup id url ->
-        ( { model | currentlyBackingUp = Just id }, Http.send BackupResult <| backupAddress url )
+        ( { model | bookmarks = map (\n -> (if n.id == id then {n | loading = True } else n ) ) model.bookmarks, currentlyBackingUp = Just id }, Http.send BackupResult <| backupAddress url )
     BackupResult (Result.Ok imgKey) ->
         ({ model | currentlyBackingUp = Nothing } , Cmd.batch [
-            backup (Maybe.withDefault "" model.currentlyBackingUp, imgKey)
-            , openTab <| importPath ++ imgKey
+                backup (Maybe.withDefault "" model.currentlyBackingUp, imgKey)
             ])
     BackupResult (Err err) ->
         let _ = Debug.log "Error backing up bookmark" err in
