@@ -36,4 +36,4 @@ gulp.task('watch', function() {
   gulp.watch(paths.wpAssets, ['build-webpack']);
 });
 
-gulp.task('dev', ['elm-bundle', 'watch']);
+gulp.task('dev', ['elm-bundle', 'build-webpack', 'watch']);
