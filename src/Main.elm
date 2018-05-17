@@ -264,14 +264,11 @@ update msg model =
                 Just _ ->
                     n
                 _ ->
-                    let link =
-                    List.foldl (\(x, y) acc ->
-                        case acc of
-                            Just _ ->
-                                acc
-                            Nothing ->
-                                if x == n.id then Just y else Nothing
-                        ) Nothing [(a,b)] in
+                let link =
+                    if a == n.id then
+                        (Just b)
+                    else
+                        Nothing in
             {n | loading = False, backupLink = link }
         ) model.bookmarks } ! []
     HandleLinks (Ok _) ->
