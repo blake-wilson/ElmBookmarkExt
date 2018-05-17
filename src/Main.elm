@@ -11,7 +11,8 @@ import Time
 import Dict exposing (Dict)
 
 backupEndpoint : String
-backupEndpoint = "https://ly4uzc77fh.execute-api.us-west-2.amazonaws.com/beta/"
+backupEndpoint =
+    "https://ly4uzc77fh.execute-api.us-west-2.amazonaws.com/beta/"
 
 importPath : String
 importPath =
@@ -130,18 +131,10 @@ renderNode node =
                                 , span [ class "mdc-list-item__meta" ] [
                                     case v.backupLink of
                                         Nothing ->
-                                            -- i [ class "toggle-btn material-icons"
-                                            --     , attribute "role" "button"
-                                            --     , attribute "data-toggle-on" """{"label": "Expand", "content": "backup"}"""
-                                            --     , attribute "data-toggle-off" """{"label": "Collapse", "content": "backup"}"""
-                                            --     , attribute "node-id" v.id
-                                            --     , disabled (if v.loading then True else False)
-                                            --     , onClick <| Backup v.id (Maybe.withDefault "" v.url) ] []
                                             button [ class "ripple-btn mdc-button__icon mdc-button"
                                                     , disabled (if v.loading then True else False)
                                                     , onClick <| Backup v.id (Maybe.withDefault "" v.url) ] [
                                                 backupIcon
-                                                -- text "Flat"
                                             ]
                                         Just s3Key ->
                                             a [href <| getS3URL s3Key, target "_blank"] [text "Open backup"]
