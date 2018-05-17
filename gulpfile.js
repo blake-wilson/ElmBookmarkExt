@@ -8,7 +8,7 @@ var paths = {
   source: './src/**/*.elm',
   staticAssets: './*.css',
   wpAssets: ['./src/**/*.scss', './src/**/*.js'],
-  staticPages: ['./src/index.html', './src/background.js']
+  staticPages: ['./src/index.html', './src/background.js', './src/manifest.json']
 };
 
 gulp.task('elm-init', elm.init);
