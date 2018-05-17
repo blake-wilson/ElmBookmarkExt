@@ -8,13 +8,6 @@ const storageKey = 'bookmarkLinks';
 document.addEventListener('DOMContentLoaded', function() {
     var div = document.getElementById('main');
     const app = Elm.Main.embed(div);
-    app.ports.getBookmarks.subscribe(function() {
-      var tree = chrome.bookmarks.getTree(function(arr) {
-        console.log('sending bookmarks ');
-        // assignLinks(arr[0]);
-        app.ports.handleBookmarks.send(arr[0]);
-      });
-    });
     app.ports.reRender.subscribe(function() {
       requestAnimationFrame( () => {
         document.querySelectorAll('.ripple-btn').forEach(function(el) {

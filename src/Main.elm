@@ -235,8 +235,6 @@ port backup : (String, String) -> Cmd msg
 
 port openTab : String -> Cmd msg
 
-port getBookmarks : String -> Cmd msg
-
 port reRender : String -> Cmd msg
 
 port handleBookmarks : (Json.Value -> msg) -> Sub msg
