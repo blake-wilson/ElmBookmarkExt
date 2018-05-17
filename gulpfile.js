@@ -7,7 +7,8 @@ var paths = {
   dest: 'dist',
   source: './src/**/*.elm',
   staticAssets: './*.css',
-  wpAssets: ['./src/**/*.scss', './src/**/*.js']
+  wpAssets: ['./src/**/*.scss', './src/**/*.js'],
+  staticPages: ['./src/index.html', './src/background.js']
 };
 
 gulp.task('elm-init', elm.init);
@@ -18,6 +19,11 @@ gulp.task('elm', ['elm-init'], function(){
     .pipe(elm())
     .pipe(gulp.dest(paths.dest + '/'));
 });
+
+gulp.task('copy-static', function() {
+  gulp.src(paths.staticPages)
+    .pipe(gulp.dest('./dist/'));
+})
 
 gulp.task('elm-bundle', ['elm-init'], function(){
   return gulp.src([paths.source])
