@@ -1,6 +1,7 @@
 import {MDCIconToggle} from '@material/icon-toggle';
 import {MDCRipple} from '@material/ripple';
-import html2canvas from 'html2canvas';
+import {MDCTopAppBar} from '@material/top-app-bar/index'
+import {MDCCheckbox} from '@material/checkbox'
 import { Z_DEFAULT_STRATEGY } from 'zlib';
 
 const storageKey = 'bookmarkLinks';
@@ -20,7 +21,14 @@ document.addEventListener('DOMContentLoaded', function() {
             app.ports.toggleExpand.send(nodeId);
           });
         });
+
+        document.querySelectorAll('.mdc-checkbox').forEach(function(el) {
+          new MDCCheckbox(el);
+        });
       });
+      
+      const topAppBarElement = document.querySelector('.mdc-top-app-bar');
+      const topAppBar = new MDCTopAppBar(topAppBarElement);
     })
     app.ports.openTab.subscribe(function(url) {
         console.log('opened tab at ', url);

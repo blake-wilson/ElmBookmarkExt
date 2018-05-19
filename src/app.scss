@@ -1,5 +1,11 @@
 @import "@material/button/mdc-button";
+@import "@material/top-app-bar/mdc-top-app-bar";
 @import "@material/list/mdc-list";
+@import "@material/checkbox/mdc-checkbox";
+
+body {
+  margin: 0;
+}
 
 .toggle-btn {
   @include mdc-ripple-surface;

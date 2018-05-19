@@ -1,14 +1,16 @@
 port module Main exposing (..)
 
 import Http
-import Html exposing (Attribute, program, div, ul, li, i, a, span, input, button, text)
-import Html.Attributes exposing (href, class, type_, target, attribute, disabled)
-import Html.Events exposing (onClick, on)
+import Html exposing (Attribute, program, section, header, div, ul, li, i, a, span, input, button, text)
+import Html.Attributes exposing (href, class, type_, target, attribute, alt, title, disabled)
+import Html.Events exposing (onClick, on, targetChecked)
 import Json.Decode as Json
 import Json.Encode exposing (list, string)
 import AnimationFrame
 import Time
 import Dict exposing (Dict)
+import Svg exposing (svg, path)
+import Svg.Attributes exposing (viewBox, fill, stroke, d)
 
 backupEndpoint : String
 backupEndpoint =
@@ -20,9 +22,16 @@ importPath =
 
 type alias Model =
     { bookmarks : Tree BookmarkNode
+    , bookmarkIndex : Dict String TreePath -- Path of node ID to location in tree
     , rerender : Bool
     , currentlyBackingUp : Maybe String
+    , selectedCount : Int
     }
+
+(!!) : List a -> Int -> Maybe a
+(!!) xs n  = List.head (List.drop n xs)
+
+type alias TreePath = List Int
 
 type Tree a
     = Empty
@@ -53,7 +62,11 @@ type alias BookmarkNode =
   , id : String
   , backupLink : Maybe String
   , loading : Bool
+  , checked : Bool
   }
+
+type alias IDNode =
+    { id : String }
 
 map : (a -> b) -> Tree a -> Tree b
 map f tree =
@@ -61,6 +74,37 @@ map f tree =
       Empty -> Empty
       Node v lst ->
           Node (f v) (List.map (\n -> (map f n) ) lst)
+
+fold : (a -> b -> b) -> b -> Tree a -> b
+fold f init tree =
+    let _ = Debug.log "fold init " init in
+    case tree of
+        Empty ->
+            Empty
+        Node v lst ->
+            fold f v (List.foldl fold init lst)
+
+
+getNodePath : Tree BookmarkNode -> String -> TreePath -> Int -> TreePath
+getNodePath tree id path index =
+    case tree of
+        Empty ->
+            []
+        Node v children ->
+            if (v.id == id) then
+                path
+            else
+                case children !! index of
+                    Nothing ->
+                        []
+                    Just n ->
+                        index :: List.concat ((List.indexedMap (\idx n -> getNodePath n id path idx) children))
+
+
+indexBookmarks : Tree BookmarkNode -> Dict String TreePath
+indexBookmarks t =
+        fold (\n -> Dict.insert n.id (getNodePath t n.id [] 0) d ) Dict.empty t
+
 
 type Msg =
     HandleBookmarks (Result String (Tree BookmarkNode))
@@ -71,6 +115,7 @@ type Msg =
     | BackupResult (Result Http.Error String)
     | Tick Time.Time
     | ToggleExpand String
+    | BoxChecked
 
 onBookmarksClicked : msg -> Attribute msg
 onBookmarksClicked message =
@@ -81,8 +126,28 @@ onFollowLink url =
     on "click" (Json.succeed url)
 
 view model =
-    div []
-    [ renderNode model.bookmarks ]
+    div [] [
+        div [] [
+            header [ class "mdc-top-app-bar" ] [
+                div [class "mdc-top-app-bar__row" ] [
+                    section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-start" ] [
+                        a [ href "#",  class "material-icons mdc-top-app-bar__navigation-icon" ] [text "menu" ]
+                        , span [ class "mdc-top-app-bar__title" ] [text "Bookmarks" ]
+                    ]
+                    , section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
+                        a [ href "#", class "material-icons mdc-top-app-bar__action-item"
+                          , attribute "aria-label" "Delete", title "Delete selected bookmark archives"
+                          , attribute "style" <| if model.selectedCount == 0 then """display: none""" else
+                            "display: inline" ] [text "delete" ]
+                          
+                    ]
+                ]
+            ]
+        ]
+        , div [ class "mdc-top-app-bar--fixed-adjust" ] [
+            renderNode model.bookmarks
+        ]
+    ]
 
 -- getS3URL returns the s3 URL for the given s3 key
 getS3URL : String -> String
@@ -131,13 +196,47 @@ renderNode node =
                                 , span [ class "mdc-list-item__meta" ] [
                                     case v.backupLink of
                                         Nothing ->
-                                            button [ class "ripple-btn mdc-button__icon mdc-button"
-                                                    , disabled (if v.loading then True else False)
-                                                    , onClick <| Backup v.id (Maybe.withDefault "" v.url) ] [
-                                                backupIcon
+                                            div [] [
+                                                -- span [] [text "Not backed up"]
+                                                div [ class "mdc-checkbox" ] [
+                                                    input [ type_ "checkbox", class "mdc-checkbox__native-control", onClick BoxChecked ] []
+                                                    , div [ class "mdc-checkbox__background" ] [
+                                                            svg [ Svg.Attributes.class "mdc-checkbox__checkmark", viewBox "0 0 24 24"] [
+                                                                    path [ Svg.Attributes.class "mdc-checkbox__checkmark-path", fill "none",
+                                                                        stroke "white", d "M1.73,12.91 8.1,19.28 22.79,4.59"
+                                                                    ] []
+                                                            ]
+                                                            , div [ class "mdc-checkbox__mixedmark" ] []
+                                                            ]
+                                                    ]
                                             ]
+                                            -- button [ class "ripple-btn mdc-button__icon mdc-button"
+                                            --         , disabled (if v.loading then True else False)
+                                            --         , onClick <| Backup v.id (Maybe.withDefault "" v.url) ] [
+                                            --     backupIcon
+                                            -- ]
                                         Just s3Key ->
-                                            a [href <| getS3URL s3Key, target "_blank"] [text "Open backup"]
+                                            div [] [
+                                                a [href <| getS3URL s3Key, target "_blank"] [text "Open backup"]
+                                                , div [ class "mdc-checkbox" ] [
+                                                  input [ type_ "checkbox", class "mdc-checkbox__native-control", onClick BoxChecked ] []
+                                                , div [ class "mdc-checkbox__background" ] [
+                                                        svg [ Svg.Attributes.class "mdc-checkbox__checkmark", viewBox "0 0 24 24"] [
+                                                                path [ Svg.Attributes.class "mdc-checkbox__checkmark-path", fill "none",
+                                                                       stroke "white", d "M1.73,12.91 8.1,19.28 22.79,4.59"
+                                                                ] []
+                                                        ]
+                                                        , div [ class "mdc-checkbox__mixedmark" ] []
+                                                        ]
+                                                  ]
+                                                    --   <svg class="mdc-checkbox__checkmark"
+                                                    --     viewBox="0 0 24 24">
+                                                    --     <path class="mdc-checkbox__checkmark-path"
+                                                    --         fill="none"
+                                                    --         stroke="white"
+                                                    --         d="M1.73,12.91 8.1,19.28 22.79,4.59"/>
+                                                    -- </svg>
+                                            ]
                                 ]
                             ]
                             , div [ attribute "style" <| if v.collapsed then """display: none""" else "display: block" ] [
@@ -186,12 +285,13 @@ withDefault default decoder =
 bookmark : Json.Decoder (Tree BookmarkNode)
 bookmark =
     Json.map2 Node
-        (Json.map6 BookmarkNode
+        (Json.map7 BookmarkNode
                 (Json.maybe (Json.field "url" Json.string))
                 (Json.maybe (Json.field "title" Json.string))
                 (Json.succeed False)
                 (Json.field "id" Json.string)
                 (Json.maybe (Json.field "backupLink" Json.string))
+                (Json.succeed False)
                 (Json.succeed False)
         )
         (withDefault [Empty] (Json.field "children" (Json.list (Json.lazy (\_ -> bookmark)))))
@@ -219,7 +319,9 @@ init =
   (
     { bookmarks = Empty
     , rerender = False
+    , bookmarkIndex = Dict.empty
     , currentlyBackingUp = Nothing
+    , selectedCount = 0
     }
   , Cmd.none
   )
@@ -244,7 +346,9 @@ update msg model =
         let _ = Debug.log "opening tab" url in
         (model, openTab url )
     HandleBookmarks (Ok bookmarks) ->
-        ({model | bookmarks = bookmarks, rerender = True}, Cmd.none)
+        ({model | bookmarks = bookmarks
+         , bookmarkIndex = indexBookmarks bookmarks
+         , rerender = True}, Cmd.none)
     HandleBookmarks (Err err) ->
         let _ = Debug.log "Uh oh" err in
             model ! []
@@ -269,10 +373,15 @@ update msg model =
         let _ = Debug.log "Error handling links" err in
             model ! []
     ToggleExpand id ->
-        let _ = (Debug.log "toggling" id) in
+        let 
+            _ = (Debug.log "toggling" id)
+            _ = Debug.log "bookmark index" model.bookmarkIndex
+        in
         ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
     CollapseNode id ->
         ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
+    BoxChecked ->
+        {model | selectedCount = model.selectedCount + 1} ! []
     Backup id url ->
         ( { model | bookmarks = map (\n -> (if n.id == id then {n | loading = True } else n ) ) model.bookmarks, currentlyBackingUp = Just id }, Http.send BackupResult <| backupAddress url )
     BackupResult (Result.Ok imgKey) ->
