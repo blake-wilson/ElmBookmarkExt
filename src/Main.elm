@@ -75,15 +75,43 @@ map f tree =
       Node v lst ->
           Node (f v) (List.map (\n -> (map f n) ) lst)
 
-fold : (a -> b -> b) -> b -> Tree a -> b
-fold f init tree =
-    let _ = Debug.log "fold init " init in
+-- fold : (a -> b -> b) -> b -> Tree a -> b
+-- fold f init tree =
+--     let _ = Debug.log "fold init " init in
+--     case tree of
+--         Empty ->
+--             Empty
+--         Node v lst ->
+--             fold f v (List.foldl fold init lst)
+
+
+-- foldBranch : (List b -> b)
+-- foldLeaf : a -> b
+
+foldTree : (List b -> b) -> (a -> b) -> (Tree a) -> b-> b
+foldTree foldBranch foldLeaf tree init =
     case tree of
         Empty ->
-            Empty
+            init
         Node v lst ->
-            fold f v (List.foldl fold init lst)
+            case lst of
+                [] ->
+                    foldLeaf v
+                _ ->
+                    foldBranch ([(foldLeaf v)] ++ List.map (\t -> foldTree foldBranch foldLeaf t init) lst)
 
+branchToDict : (List (Dict String TreePath)) -> Dict String TreePath
+branchToDict lst =
+    List.foldl (\acc d -> Dict.union d acc) Dict.empty lst
+
+leafAccum : BookmarkNode -> Dict String TreePath
+leafAccum n =
+    Dict.singleton ("test" ++ n.id) [1,2,3]
+
+
+-- leafToDict : (BookmarkNode -> Dict String TreePath)
+-- leafToDict n =
+--     Dict.singleton n.id (getNodePath n n.id [] 0)
 
 getNodePath : Tree BookmarkNode -> String -> TreePath -> Int -> TreePath
 getNodePath tree id path index =
@@ -103,7 +131,8 @@ getNodePath tree id path index =
 
 indexBookmarks : Tree BookmarkNode -> Dict String TreePath
 indexBookmarks t =
-        fold (\n -> Dict.insert n.id (getNodePath t n.id [] 0) d ) Dict.empty t
+    foldTree branchToDict leafAccum t Dict.empty
+        -- fold (\n -> Dict.insert n.id (getNodePath t n.id [] 0) d ) Dict.empty t
 
 
 type Msg =
@@ -139,7 +168,7 @@ view model =
                           , attribute "aria-label" "Delete", title "Delete selected bookmark archives"
                           , attribute "style" <| if model.selectedCount == 0 then """display: none""" else
                             "display: inline" ] [text "delete" ]
-                          
+
                     ]
                 ]
             ]
@@ -373,12 +402,14 @@ update msg model =
         let _ = Debug.log "Error handling links" err in
             model ! []
     ToggleExpand id ->
-        let 
+        let
             _ = (Debug.log "toggling" id)
             _ = Debug.log "bookmark index" model.bookmarkIndex
         in
         ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
     CollapseNode id ->
+        let
+            _ = Debug.log "bookmarkIndex" model.bookmarkIndex in
         ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
     BoxChecked ->
         {model | selectedCount = model.selectedCount + 1} ! []
