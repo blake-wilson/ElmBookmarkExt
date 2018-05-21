@@ -2,7 +2,7 @@ port module Main exposing (..)
 
 import Http
 import Html exposing (Attribute, program, section, header, div, ul, li, i, a, span, input, button, text)
-import Html.Attributes exposing (href, class, type_, target, attribute, alt, title, disabled)
+import Html.Attributes exposing (href, class, type_, target, attribute, alt, title, checked, disabled)
 import Html.Events exposing (onClick, on, targetChecked)
 import Json.Decode as Json
 import Json.Encode exposing (list, string)
@@ -26,6 +26,7 @@ type alias Model =
     , rerender : Bool
     , currentlyBackingUp : Maybe String
     , selectedCount : Int
+    , checkedNodes : Dict String Bool -- Set of selected node IDs
     }
 
 (!!) : List a -> Int -> Maybe a
@@ -64,6 +65,13 @@ type alias BookmarkNode =
   , loading : Bool
   , checked : Bool
   }
+
+-- Update props represents the properties of a node that
+-- can be updated
+type alias UpdateProps =
+    { backupLink : Maybe String
+    , checked : Bool
+    }
 
 type alias IDNode =
     { id : String }
@@ -124,6 +132,23 @@ leafAccum2 (n, tree) =
 -- leafToDict n =
 --     Dict.singleton n.id (getNodePath n n.id [] 0)
 
+getNodeAtPath : Tree BookmarkNode -> TreePath -> Tree BookmarkNode
+getNodeAtPath tree path =
+    case path of
+        x::xs ->
+            case tree of
+                Empty ->
+                    Empty
+                Node v lst ->
+                    case lst !! x of
+                        Nothing ->
+                            Empty
+                        Just n ->
+                            getNodeAtPath n xs
+        [] ->
+            tree
+
+
 getNodePath : Tree BookmarkNode -> String -> TreePath -> Int -> TreePath
 getNodePath tree id path index =
     case tree of
@@ -137,8 +162,38 @@ getNodePath tree id path index =
                     Nothing ->
                         []
                     Just n ->
-                        List.concat (List.indexedMap (\idx n -> getNodePath n id (index::path) idx) children)
+                        List.concat (List.indexedMap (\idx n -> getNodePath n id (path ++ [idx] ) idx) children)
 
+replaceProps : BookmarkNode -> UpdateProps -> BookmarkNode
+replaceProps node props =
+    { node | checked = props.checked, backupLink = props.backupLink }
+
+-- updateNode replaces the node at the given tree path with the given node
+updateNode : Tree BookmarkNode -> TreePath -> UpdateProps -> Tree BookmarkNode
+updateNode tree path props =
+    case tree of
+        Empty ->
+            Empty
+        Node v children ->
+            case path of
+                [] ->
+                    tree
+                x::[] ->
+                    let _ = Debug.log "updating node" v
+                        _ = Debug.log "index" x in
+                    Node v (List.indexedMap (\idx cn ->
+                        case cn of
+                            Empty ->
+                                Empty
+                            Node value lst ->
+                                if idx == x then (Node (replaceProps value props) lst) else cn
+                        ) children)
+                x::xs ->
+                    Node v (List.indexedMap (\idx t ->
+                        if idx == x then
+                            updateNode t xs props
+                        else
+                            t) children)
 
 indexBookmarks : Tree BookmarkNode -> Dict String TreePath
 indexBookmarks t =
@@ -159,7 +214,7 @@ type Msg =
     | BackupResult (Result Http.Error String)
     | Tick Time.Time
     | ToggleExpand String
-    | BoxChecked
+    | BoxChecked String
 
 onBookmarksClicked : msg -> Attribute msg
 onBookmarksClicked message =
@@ -189,7 +244,7 @@ view model =
             ]
         ]
         , div [ class "mdc-top-app-bar--fixed-adjust" ] [
-            renderNode model.bookmarks
+            renderNode model model.bookmarks
         ]
     ]
 
@@ -202,8 +257,8 @@ backupIcon : Html.Html Msg
 backupIcon =
     i [ class "backup-icon material-icons mdc-button__icon" ] [ text "backup" ]
 
-renderNode : Tree BookmarkNode -> Html.Html Msg
-renderNode node =
+renderNode : Model -> Tree BookmarkNode -> Html.Html Msg
+renderNode model node =
     case node of
     Empty ->
         div [] []
@@ -243,7 +298,8 @@ renderNode node =
                                             div [] [
                                                 -- span [] [text "Not backed up"]
                                                 div [ class "mdc-checkbox" ] [
-                                                    input [ type_ "checkbox", class "mdc-checkbox__native-control", onClick BoxChecked ] []
+                                                    input [ type_ "checkbox", class "mdc-checkbox__native-control"
+                                                    , checked <| (Maybe.withDefault False) (Dict.get v.id model.checkedNodes), onClick (BoxChecked v.id) ] []
                                                     , div [ class "mdc-checkbox__background" ] [
                                                             svg [ Svg.Attributes.class "mdc-checkbox__checkmark", viewBox "0 0 24 24"] [
                                                                     path [ Svg.Attributes.class "mdc-checkbox__checkmark-path", fill "none",
@@ -263,7 +319,7 @@ renderNode node =
                                             div [] [
                                                 a [href <| getS3URL s3Key, target "_blank"] [text "Open backup"]
                                                 , div [ class "mdc-checkbox" ] [
-                                                  input [ type_ "checkbox", class "mdc-checkbox__native-control", onClick BoxChecked ] []
+                                                  input [ type_ "checkbox", class "mdc-checkbox__native-control", onClick (BoxChecked v.id) ] []
                                                 , div [ class "mdc-checkbox__background" ] [
                                                         svg [ Svg.Attributes.class "mdc-checkbox__checkmark", viewBox "0 0 24 24"] [
                                                                 path [ Svg.Attributes.class "mdc-checkbox__checkmark-path", fill "none",
@@ -273,18 +329,11 @@ renderNode node =
                                                         , div [ class "mdc-checkbox__mixedmark" ] []
                                                         ]
                                                   ]
-                                                    --   <svg class="mdc-checkbox__checkmark"
-                                                    --     viewBox="0 0 24 24">
-                                                    --     <path class="mdc-checkbox__checkmark-path"
-                                                    --         fill="none"
-                                                    --         stroke="white"
-                                                    --         d="M1.73,12.91 8.1,19.28 22.79,4.59"/>
-                                                    -- </svg>
                                             ]
                                 ]
                             ]
                             , div [ attribute "style" <| if v.collapsed then """display: none""" else "display: block" ] [
-                            (ul [ class "mdc-list mdc-list--dense" ] <| List.map (\c -> renderNode c) lst)
+                            (ul [ class "mdc-list mdc-list--dense" ] <| List.map (\c -> renderNode model c) lst)
                             ]
                         ]
 
@@ -366,6 +415,7 @@ init =
     , bookmarkIndex = Dict.empty
     , currentlyBackingUp = Nothing
     , selectedCount = 0
+    , checkedNodes = Dict.empty
     }
   , Cmd.none
   )
@@ -426,8 +476,31 @@ update msg model =
         let
             _ = Debug.log "bookmarkIndex" model.bookmarkIndex in
         ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
-    BoxChecked ->
-        {model | selectedCount = model.selectedCount + 1} ! []
+    BoxChecked id ->
+        let
+            _ = Debug.log "checked boxes" model.checkedNodes
+            path = (Maybe.withDefault [] <| Dict.get id model.bookmarkIndex)
+            _ = Debug.log "Path is" path
+            node = case path of
+                [] -> Empty
+                _ -> (getNodeAtPath model.bookmarks path)
+            _ = Debug.log "Toggling Node " node
+            updateProps =
+                case node of
+                    Empty ->
+                        { checked = False, backupLink = Just "" }
+                    Node v lst ->
+                        { checked = not v.checked, backupLink = v.backupLink }
+            checkedNodes =
+                case node of
+                    Empty ->
+                        model.checkedNodes
+                    Node v lst ->
+                        Dict.insert id updateProps.checked model.checkedNodes
+        in
+            {model | bookmarks = updateNode model.bookmarks path updateProps, selectedCount = model.selectedCount + 1, checkedNodes = checkedNodes } ! []
+            --checkedNodes = Dict.update model.checkedNodes ++ "id"
+
     Backup id url ->
         ( { model | bookmarks = map (\n -> (if n.id == id then {n | loading = True } else n ) ) model.bookmarks, currentlyBackingUp = Just id }, Http.send BackupResult <| backupAddress url )
     BackupResult (Result.Ok imgKey) ->
