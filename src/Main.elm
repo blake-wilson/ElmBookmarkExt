@@ -108,6 +108,17 @@ leafAccum : BookmarkNode -> Dict String TreePath
 leafAccum n =
     Dict.singleton ("test" ++ n.id) [1,2,3]
 
+branchToDict2 : (List (Dict String TreePath, Tree BookmarkNode)) -> ((Dict String TreePath), Tree BookmarkNode)
+branchToDict2 (lst) =
+    let nodes =
+        Tuple.first (List.unzip lst)
+        tree = Tuple.second ((Maybe.withDefault (Dict.empty, Empty) <| List.head lst))
+    in
+    (branchToDict nodes, tree)
+
+leafAccum2 : (BookmarkNode, Tree BookmarkNode) -> (Dict String TreePath, Tree BookmarkNode)
+leafAccum2 (n, tree) =
+    (Dict.singleton n.id (getNodePath tree n.id [] 0), tree)
 
 -- leafToDict : (BookmarkNode -> Dict String TreePath)
 -- leafToDict n =
@@ -131,7 +142,11 @@ getNodePath tree id path index =
 
 indexBookmarks : Tree BookmarkNode -> Dict String TreePath
 indexBookmarks t =
-    foldTree branchToDict leafAccum t Dict.empty
+    let mappedTree =
+        map (\n -> (n, t)) t
+        (result, _) = foldTree branchToDict2 leafAccum2 mappedTree (Dict.empty, t)
+    in
+        result
         -- fold (\n -> Dict.insert n.id (getNodePath t n.id [] 0) d ) Dict.empty t
 
 
