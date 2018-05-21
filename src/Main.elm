@@ -244,27 +244,34 @@ onFollowLink url =
     on "click" (Json.succeed url)
 
 view model =
-    div [] [
+    let bookmarksSelected =
+        not <| Dict.isEmpty (Dict.filter (\_ v -> v) model.checkedNodes)
+    in
         div [] [
-            header [ class "mdc-top-app-bar" ] [
-                div [class "mdc-top-app-bar__row" ] [
-                    section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-start" ] [
-                        a [ href "#",  class "material-icons mdc-top-app-bar__navigation-icon" ] [text "menu" ]
-                        , span [ class "mdc-top-app-bar__title" ] [text "Bookmarks" ]
-                    ]
-                    , section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
-                        a [ href "#", class "material-icons mdc-top-app-bar__action-item"
-                          , attribute "aria-label" "Delete", title "Delete selected bookmark archives"
-                          , attribute "style" <| if model.selectedCount == 0 then """display: none""" else
-                            "display: inline" ] [text "delete" ]
+            div [] [
+                header [ class "mdc-top-app-bar" ] [
+                    div [class "mdc-top-app-bar__row" ] [
+                        section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-start" ] [
+                            a [ href "#",  class "material-icons mdc-top-app-bar__navigation-icon" ] [text "menu" ]
+                            , span [ class "mdc-top-app-bar__title" ] [text "Bookmarks" ]
+                        ]
+                        , if bookmarksSelected then
+                            -- show bookmark operations
+                            section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
+                                a [ href "#", class "material-icons mdc-top-app-bar__action-item"
+                                , attribute "aria-label" "Delete", title "Delete selected bookmark archives"
+                                , attribute "style" <| if model.selectedCount == 0 then """display: none""" else
+                                    "display: inline" ] [text "delete" ]
 
+                            ]
+                        else
+                            text ""
                     ]
                 ]
             ]
-        ]
-        , div [ class "mdc-top-app-bar--fixed-adjust" ] [
-            renderNode model model.bookmarks
-        ]
+            , div [ class "mdc-top-app-bar--fixed-adjust" ] [
+                renderNode model model.bookmarks
+            ]
     ]
 
 -- getS3URL returns the s3 URL for the given s3 key
