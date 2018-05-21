@@ -137,7 +137,7 @@ getNodePath tree id path index =
                     Nothing ->
                         []
                     Just n ->
-                        index :: List.concat ((List.indexedMap (\idx n -> getNodePath n id path idx) children))
+                        List.concat (List.indexedMap (\idx n -> getNodePath n id (index::path) idx) children)
 
 
 indexBookmarks : Tree BookmarkNode -> Dict String TreePath
