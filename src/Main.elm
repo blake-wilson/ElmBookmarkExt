@@ -199,7 +199,7 @@ updateNode tree path props =
         Node v children ->
             case path of
                 [] ->
-                    tree
+                    Node (replaceProps v props) children
                 x::[] ->
                     Node v (List.indexedMap (\idx cn ->
                         case cn of
@@ -228,7 +228,6 @@ indexBookmarks t =
 type Msg =
     HandleBookmarks (Result String (Tree BookmarkNode))
     | HandleLinks (Result String (List (String, String)))
-    | CollapseNode (String)
     | OpenTab String
     | Backup String String
     | BackupResult (Result Http.Error String)
@@ -487,26 +486,17 @@ update msg model =
             model ! []
     ToggleExpand id ->
         let
-            _ = (Debug.log "toggling" id)
-            _ = Debug.log "bookmark index" model.bookmarkIndex
-        in
-        ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
-    CollapseNode id ->
-        let
             path = (Maybe.withDefault [] <| Dict.get id model.bookmarkIndex)
-            node = case path of
-                [] -> Empty
-                _ -> (getNodeAtPath model.bookmarks path)
+            node = getNodeAtPath model.bookmarks path
             updateProps =
                 case node of
                     Empty ->
                         defaultProps
                     Node v lst ->
                         let props = currentProps v in
-                            { props | collapsed = not v.checked }
+                            { props | collapsed = not v.collapsed }
         in
             { model | bookmarks = updateNode model.bookmarks path updateProps } ! []
-
     BoxChecked id ->
         let
             _ = Debug.log "checked boxes" model.checkedNodes
