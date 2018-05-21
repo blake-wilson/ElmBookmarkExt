@@ -71,6 +71,26 @@ type alias BookmarkNode =
 type alias UpdateProps =
     { backupLink : Maybe String
     , checked : Bool
+    , collapsed : Bool
+    }
+
+defaultProps : UpdateProps
+defaultProps =
+    { backupLink = Nothing
+    , checked = False
+    , collapsed = False
+    }
+
+-- Get the current properties of the node so that select
+-- properties can be updated (e.g.
+    -- let props = currentProps node in
+    --  { props | checked = not v.checked }
+-- )
+currentProps : BookmarkNode -> UpdateProps
+currentProps node =
+    { backupLink = node.backupLink
+    , checked = node.checked
+    , collapsed = node.collapsed
     }
 
 type alias IDNode =
@@ -166,7 +186,9 @@ getNodePath tree id path index =
 
 replaceProps : BookmarkNode -> UpdateProps -> BookmarkNode
 replaceProps node props =
-    { node | checked = props.checked, backupLink = props.backupLink }
+    { node | checked = props.checked
+    , backupLink = props.backupLink
+    , collapsed = props.collapsed }
 
 -- updateNode replaces the node at the given tree path with the given node
 updateNode : Tree BookmarkNode -> TreePath -> UpdateProps -> Tree BookmarkNode
@@ -179,8 +201,6 @@ updateNode tree path props =
                 [] ->
                     tree
                 x::[] ->
-                    let _ = Debug.log "updating node" v
-                        _ = Debug.log "index" x in
                     Node v (List.indexedMap (\idx cn ->
                         case cn of
                             Empty ->
@@ -299,7 +319,7 @@ renderNode model node =
                                                 -- span [] [text "Not backed up"]
                                                 div [ class "mdc-checkbox" ] [
                                                     input [ type_ "checkbox", class "mdc-checkbox__native-control"
-                                                    , checked <| (Maybe.withDefault False) (Dict.get v.id model.checkedNodes), onClick (BoxChecked v.id) ] []
+                                                    , checked v.checked, onClick (BoxChecked v.id) ] []
                                                     , div [ class "mdc-checkbox__background" ] [
                                                             svg [ Svg.Attributes.class "mdc-checkbox__checkmark", viewBox "0 0 24 24"] [
                                                                     path [ Svg.Attributes.class "mdc-checkbox__checkmark-path", fill "none",
@@ -319,7 +339,8 @@ renderNode model node =
                                             div [] [
                                                 a [href <| getS3URL s3Key, target "_blank"] [text "Open backup"]
                                                 , div [ class "mdc-checkbox" ] [
-                                                  input [ type_ "checkbox", class "mdc-checkbox__native-control", onClick (BoxChecked v.id) ] []
+                                                  input [ type_ "checkbox", class "mdc-checkbox__native-control"
+                                                  , checked v.checked, onClick (BoxChecked v.id) ] []
                                                 , div [ class "mdc-checkbox__background" ] [
                                                         svg [ Svg.Attributes.class "mdc-checkbox__checkmark", viewBox "0 0 24 24"] [
                                                                 path [ Svg.Attributes.class "mdc-checkbox__checkmark-path", fill "none",
@@ -447,7 +468,6 @@ update msg model =
         let _ = Debug.log "Uh oh" err in
             model ! []
     HandleLinks (Ok [(a,b)]) ->
-        let _ = Debug.log "setting node ID and link" [(a,b)] in
         { model | bookmarks = map (\n ->
             case n.backupLink of
                 Just _ ->
@@ -461,8 +481,7 @@ update msg model =
             {n | loading = False, backupLink = link }
         ) model.bookmarks } ! []
     HandleLinks (Ok _) ->
-        let _ = Debug.log "handle links default case" "default" in
-        model ! []
+        model ! [] -- should be unreachable
     HandleLinks (Err err) ->
         let _ = Debug.log "Error handling links" err in
             model ! []
@@ -474,8 +493,20 @@ update msg model =
         ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
     CollapseNode id ->
         let
-            _ = Debug.log "bookmarkIndex" model.bookmarkIndex in
-        ({ model | bookmarks = map (\n -> (if n.id == id then {n | collapsed = not n.collapsed } else n ) ) model.bookmarks }, Cmd.none)
+            path = (Maybe.withDefault [] <| Dict.get id model.bookmarkIndex)
+            node = case path of
+                [] -> Empty
+                _ -> (getNodeAtPath model.bookmarks path)
+            updateProps =
+                case node of
+                    Empty ->
+                        defaultProps
+                    Node v lst ->
+                        let props = currentProps v in
+                            { props | collapsed = not v.checked }
+        in
+            { model | bookmarks = updateNode model.bookmarks path updateProps } ! []
+
     BoxChecked id ->
         let
             _ = Debug.log "checked boxes" model.checkedNodes
@@ -488,9 +519,10 @@ update msg model =
             updateProps =
                 case node of
                     Empty ->
-                        { checked = False, backupLink = Just "" }
+                        defaultProps
                     Node v lst ->
-                        { checked = not v.checked, backupLink = v.backupLink }
+                        let props = currentProps v in
+                            { props | checked = not v.checked }
             checkedNodes =
                 case node of
                     Empty ->
@@ -499,7 +531,6 @@ update msg model =
                         Dict.insert id updateProps.checked model.checkedNodes
         in
             {model | bookmarks = updateNode model.bookmarks path updateProps, selectedCount = model.selectedCount + 1, checkedNodes = checkedNodes } ! []
-            --checkedNodes = Dict.update model.checkedNodes ++ "id"
 
     Backup id url ->
         ( { model | bookmarks = map (\n -> (if n.id == id then {n | loading = True } else n ) ) model.bookmarks, currentlyBackingUp = Just id }, Http.send BackupResult <| backupAddress url )
