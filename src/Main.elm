@@ -231,12 +231,12 @@ view model =
                             div [] [
                                 -- show bookmark operations
                                 section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
-                                    a [ href "#", class "material-icons mdc-top-app-bar__action-item"
+                                    span [ class "material-icons mdc-top-app-bar__action-item"
                                     , attribute "aria-label" "Delete", title "Delete selected bookmark archives"
                                     ] [ text "delete" ]
                                 ]
                                 , section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
-                                    a [ href "#", class "material-icons mdc-top-app-bar__action-item"
+                                    span [ class "material-icons mdc-top-app-bar__action-item"
                                     , onClick Backup
                                     , attribute "aria-label" "Backup", title "Delete selected bookmark archives"
                                     ] [ text "backup" ]
