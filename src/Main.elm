@@ -104,7 +104,7 @@ foldTree foldBranch foldLeaf tree init =
                 [] ->
                     foldLeaf v
                 _ ->
-                    foldBranch ([(foldLeaf v)] ++ List.map (\t -> foldTree foldBranch foldLeaf t init) lst)
+                    foldBranch ([foldLeaf v] ++ List.map (\t -> foldTree foldBranch foldLeaf t init) lst)
 
 branchToDict : (List (Dict String TreePath)) -> Dict String TreePath
 branchToDict lst =
@@ -115,10 +115,10 @@ leafAccum n =
     Dict.singleton ("test" ++ n.id) [1,2,3]
 
 branchToDict2 : (List (Dict String TreePath, Tree BookmarkNode)) -> ((Dict String TreePath), Tree BookmarkNode)
-branchToDict2 (lst) =
+branchToDict2 lst =
     let nodes =
         Tuple.first (List.unzip lst)
-        tree = Tuple.second ((Maybe.withDefault (Dict.empty, Empty) <| List.head lst))
+        tree = Tuple.second (Maybe.withDefault (Dict.empty, Empty) <| List.head lst)
     in
     (branchToDict nodes, tree)
 
@@ -156,11 +156,7 @@ getNodePath tree id path index =
             if (v.id == id) then
                 path
             else
-                case children !! index of
-                    Nothing ->
-                        []
-                    Just n ->
-                        List.concat (List.indexedMap (\idx n -> getNodePath n id (path ++ [idx] ) idx) children)
+                List.concat (List.indexedMap (\idx n -> getNodePath n id (path ++ [idx] ) idx) children)
 
 -- updateNode replaces the node at the given tree path with the given node-updating function
 updateNode : Tree BookmarkNode -> TreePath -> (BookmarkNode -> BookmarkNode) -> Tree BookmarkNode
@@ -301,12 +297,16 @@ renderNode model node =
                                         div [ attribute "role" "progressbar", class "mdc-linear-progress mdc-linear-progress--indeterminate" ]
                                             [ div [ class "mdc-linear-progress__buffering-dots" ] []
                                             , div [ class "mdc-linear-progress__buffer" ] []
-                                            , div [ class "mdc-linear-progress__bar mdc-linear-progress__primary-bar" ] []
-                                            , div [ class "mdc-linear-progress__bar-inner" ] []
+                                            , div [ class "mdc-linear-progress__bar mdc-linear-progress__primary-bar" ] [
+                                                span [ class "mdc-linear-progress__bar-inner" ] []
+                                            ]
+                                            , div [ class "mdc-linear-progress__bar mdc-linear-progress__secondary-bar" ] [
+                                                span [ class "mdc-linear-progress__bar-inner" ] []
+                                            ]
                                             ]
                                     else
-                                        text ""
-                                    ,
+                                    --     text ""
+                                    -- ,
                                     case v.backupLink of
                                         Nothing ->
                                             div [] [
