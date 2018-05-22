@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.mdc-checkbox').forEach(function(el) {
           new MDCCheckbox(el);
         });
+        document.querySelectorAll('.mdc-linear-progress', function(el) {
+          MDCLinearProgress.attachTo(el);
+        });
       });
 
       const topAppBarElement = document.querySelector('.mdc-top-app-bar');

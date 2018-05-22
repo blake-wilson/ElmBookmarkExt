@@ -217,11 +217,11 @@ view model =
     in
         div [] [
             div [] [
-                header [ class "mdc-top-app-bar" ] [
+                header [ class "app-bar mdc-top-app-bar mdc-top-app-bar--fixed" ] [
                     div [class "mdc-top-app-bar__row" ] [
                         section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-start" ] [
                             a [ href "#",  class "material-icons mdc-top-app-bar__navigation-icon" ] [text "menu" ]
-                            , span [ class "mdc-top-app-bar__title" ] [text "Bookmarks" ]
+                            , span [ class "mdc-top-app-bar__title" ] [ text "Bookmarks" ]
                         ]
                         , if bookmarksSelected then
                             div [] [
@@ -234,7 +234,7 @@ view model =
                                 , section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
                                     span [ class "material-icons mdc-top-app-bar__action-item"
                                     , onClick Backup
-                                    , attribute "aria-label" "Backup", title "Delete selected bookmark archives"
+                                    , attribute "aria-label" "Backup", title "Backup selected bookmarks"
                                     ] [ text "backup" ]
                                 ]
                             ]
@@ -293,8 +293,10 @@ renderNode model node =
                                     entry
                                 ]
                                 , span [ class "mdc-list-item__meta" ] [
-                                    if v.loading then
-                                        div [ attribute "role" "progressbar", class "mdc-linear-progress mdc-linear-progress--indeterminate" ]
+                                    let progressHidden =
+                                        if v.loading then """display: block""" else "display: none"
+                                    in
+                                        div [ attribute "style" progressHidden, attribute "role" "progressbar", class "mdc-linear-progress mdc-linear-progress--indeterminate" ]
                                             [ div [ class "mdc-linear-progress__buffering-dots" ] []
                                             , div [ class "mdc-linear-progress__buffer" ] []
                                             , div [ class "mdc-linear-progress__bar mdc-linear-progress__primary-bar" ] [
@@ -304,9 +306,9 @@ renderNode model node =
                                                 span [ class "mdc-linear-progress__bar-inner" ] []
                                             ]
                                             ]
-                                    else
                                     --     text ""
                                     -- ,
+                                    ,
                                     case v.backupLink of
                                         Nothing ->
                                             div [] [
@@ -516,13 +518,10 @@ update msg model =
             { model | bookmarks = updateNode model.bookmarks path (\n -> setCollapsed (not n.collapsed) n) } ! []
     BoxChecked id ->
         let
-            _ = Debug.log "checked boxes" model.checkedNodes
             path = (Maybe.withDefault [] <| Dict.get id model.bookmarkIndex)
-            _ = Debug.log "Path is" path
             node = case path of
                 [] -> Empty
                 _ -> (getNodeAtPath model.bookmarks path)
-            _ = Debug.log "Toggling Node " node
         in
             case node of
                 Empty ->
@@ -538,7 +537,12 @@ update msg model =
         let ids = Dict.filter (\_ v -> v) model.checkedNodes
         in
             ( { model | bookmarks = map (\n ->
-                if Dict.member n.id ids then { n | loading = True } else n
+                if Dict.member n.id ids then { n | loading =
+                    case n.backupLink of
+                        Just _ ->
+                            False
+                        _ ->
+                            True } else n
                 ) model.bookmarks }
             ,
             Cmd.batch (
@@ -547,12 +551,15 @@ update msg model =
                         Empty ->
                             Cmd.none
                         Node v _ ->
-                            case v.url of
-                                Just url ->
-                                    let _ = Debug.log "backing up " url in
-                                    Http.send (BackupResult v.id) <| backupAddress url
-                                _ ->
+                            case v.backupLink of
+                                Just _ ->
                                     Cmd.none
+                                _ ->
+                                    case v.url of
+                                        Just url ->
+                                            Http.send (BackupResult v.id) <| backupAddress url
+                                        _ ->
+                                            Cmd.none
                     ) (Dict.keys ids)
             )
         )

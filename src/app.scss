@@ -8,6 +8,10 @@ body {
   margin: 0;
 }
 
+.app-bar {
+  z-index: 2147483647;
+}
+
 .toggle-btn {
   @include mdc-ripple-surface;
   @include mdc-ripple-radius-bounded(10px);
