@@ -24,7 +24,6 @@ type alias Model =
     { bookmarks : Tree BookmarkNode
     , bookmarkIndex : Dict String TreePath -- Path of node ID to location in tree
     , rerender : Bool
-    , currentlyBackingUp : Maybe String
     , selectedCount : Int
     , checkedNodes : Dict String Bool -- Set of selected node IDs
     }
@@ -66,32 +65,20 @@ type alias BookmarkNode =
   , checked : Bool
   }
 
--- Update props represents the properties of a node that
--- can be updated
-type alias UpdateProps =
-    { backupLink : Maybe String
-    , checked : Bool
-    , collapsed : Bool
-    }
+setBackupLink : Maybe String -> BookmarkNode -> BookmarkNode
+setBackupLink link node =
 
-defaultProps : UpdateProps
-defaultProps =
-    { backupLink = Nothing
-    , checked = False
-    , collapsed = False
-    }
+setChecked : Bool -> BookmarkNode -> BookmarkNode
+setChecked checked node =
+    { node | checked = checked }
 
--- Get the current properties of the node so that select
--- properties can be updated (e.g.
-    -- let props = currentProps node in
-    --  { props | checked = not v.checked }
--- )
-currentProps : BookmarkNode -> UpdateProps
-currentProps node =
-    { backupLink = node.backupLink
-    , checked = node.checked
-    , collapsed = node.collapsed
-    }
+setLoading : Bool -> BookmarkNode -> BookmarkNode
+setLoading loading node =
+    { node | loading = loading }
+
+setCollapsed : Bool -> BookmarkNode -> BookmarkNode
+setCollapsed collapsed node =
+    { node | collapsed = collapsed }
 
 type alias IDNode =
     { id : String }
@@ -102,16 +89,6 @@ map f tree =
       Empty -> Empty
       Node v lst ->
           Node (f v) (List.map (\n -> (map f n) ) lst)
-
--- fold : (a -> b -> b) -> b -> Tree a -> b
--- fold f init tree =
---     let _ = Debug.log "fold init " init in
---     case tree of
---         Empty ->
---             Empty
---         Node v lst ->
---             fold f v (List.foldl fold init lst)
-
 
 -- foldBranch : (List b -> b)
 -- foldLeaf : a -> b
@@ -184,34 +161,28 @@ getNodePath tree id path index =
                     Just n ->
                         List.concat (List.indexedMap (\idx n -> getNodePath n id (path ++ [idx] ) idx) children)
 
-replaceProps : BookmarkNode -> UpdateProps -> BookmarkNode
-replaceProps node props =
-    { node | checked = props.checked
-    , backupLink = props.backupLink
-    , collapsed = props.collapsed }
-
--- updateNode replaces the node at the given tree path with the given node
-updateNode : Tree BookmarkNode -> TreePath -> UpdateProps -> Tree BookmarkNode
-updateNode tree path props =
+-- updateNode replaces the node at the given tree path with the given node-updating function
+updateNode : Tree BookmarkNode -> TreePath -> (BookmarkNode -> BookmarkNode) -> Tree BookmarkNode
+updateNode tree path updateF =
     case tree of
         Empty ->
             Empty
         Node v children ->
             case path of
                 [] ->
-                    Node (replaceProps v props) children
+                    Node (updateF v) children
                 x::[] ->
                     Node v (List.indexedMap (\idx cn ->
                         case cn of
                             Empty ->
                                 Empty
                             Node value lst ->
-                                if idx == x then (Node (replaceProps value props) lst) else cn
+                                if idx == x then (Node (updateF value) lst) else cn
                         ) children)
                 x::xs ->
                     Node v (List.indexedMap (\idx t ->
                         if idx == x then
-                            updateNode t xs props
+                            updateNode t xs updateF
                         else
                             t) children)
 
@@ -229,8 +200,8 @@ type Msg =
     HandleBookmarks (Result String (Tree BookmarkNode))
     | HandleLinks (Result String (List (String, String)))
     | OpenTab String
-    | Backup String String
-    | BackupResult (Result Http.Error String)
+    | Backup
+    | BackupResult String (Result Http.Error String)
     | Tick Time.Time
     | ToggleExpand String
     | BoxChecked String
@@ -256,13 +227,19 @@ view model =
                             , span [ class "mdc-top-app-bar__title" ] [text "Bookmarks" ]
                         ]
                         , if bookmarksSelected then
-                            -- show bookmark operations
-                            section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
-                                a [ href "#", class "material-icons mdc-top-app-bar__action-item"
-                                , attribute "aria-label" "Delete", title "Delete selected bookmark archives"
-                                , attribute "style" <| if model.selectedCount == 0 then """display: none""" else
-                                    "display: inline" ] [text "delete" ]
-
+                            div [] [
+                                -- show bookmark operations
+                                section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
+                                    a [ href "#", class "material-icons mdc-top-app-bar__action-item"
+                                    , attribute "aria-label" "Delete", title "Delete selected bookmark archives"
+                                    ] [ text "delete" ]
+                                ]
+                                , section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
+                                    a [ href "#", class "material-icons mdc-top-app-bar__action-item"
+                                    , onClick Backup
+                                    , attribute "aria-label" "Backup", title "Delete selected bookmark archives"
+                                    ] [ text "backup" ]
+                                ]
                             ]
                         else
                             text ""
@@ -440,7 +417,6 @@ init =
     { bookmarks = Empty
     , rerender = False
     , bookmarkIndex = Dict.empty
-    , currentlyBackingUp = Nothing
     , selectedCount = 0
     , checkedNodes = Dict.empty
     }
@@ -459,6 +435,40 @@ port handleLinks : (Json.Value -> msg) -> Sub msg
 
 port toggleExpand : (String -> msg) -> Sub msg
 
+
+getNode : Tree BookmarkNode -> Dict String TreePath -> String -> Tree BookmarkNode
+getNode tree pathDict id =
+    let
+        path = (Maybe.withDefault [] <| Dict.get id pathDict)
+    in
+        getNodeAtPath tree path
+
+
+-- setProps : Tree BookmarkNode -> List String -> (BookmarkNode -> UpdateProps) -> Tree BookmarkNode
+-- setProps model toUpdate updateF =
+--     List.map (\id ->
+--     let
+--         path = (Maybe.withDefault [] <| Dict.get id model.bookmarkIndex)
+--         node = case path of
+--             [] -> Empty
+--             _ -> (getNodeAtPath model.bookmarks path)
+--                     updateProps =
+--         case node of
+--             Empty ->
+--                 defaultProps
+--             Node v lst ->
+--                 let props = currentProps v in
+--                     { props | updating = True }
+--     in
+--         case node of
+--             Empty ->
+--                 Cmd.none
+--             Node v _ ->
+--                 updateF v
+--     ) ids
+--     in
+--         { model | bookmarks = }
+
 -- TODO: refactor the map list iteration in favor of id-indexed Dict
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -474,18 +484,15 @@ update msg model =
         let _ = Debug.log "Uh oh" err in
             model ! []
     HandleLinks (Ok [(a,b)]) ->
-        { model | bookmarks = map (\n ->
-            case n.backupLink of
-                Just _ ->
+        let
+            link = (Just b)
+            path = (Maybe.withDefault [] <| Dict.get a model.bookmarkIndex)
+        in
+            { model | bookmarks = updateNode model.bookmarks path (\n ->
                     n
-                _ ->
-                let link =
-                    if a == n.id then
-                        (Just b)
-                    else
-                        Nothing in
-            {n | loading = False, backupLink = link }
-        ) model.bookmarks } ! []
+                    |> setLoading False
+                    |> setBackupLink link
+                ) } ! []
     HandleLinks (Ok _) ->
         model ! [] -- should be unreachable
     HandleLinks (Err err) ->
@@ -494,16 +501,8 @@ update msg model =
     ToggleExpand id ->
         let
             path = (Maybe.withDefault [] <| Dict.get id model.bookmarkIndex)
-            node = getNodeAtPath model.bookmarks path
-            updateProps =
-                case node of
-                    Empty ->
-                        defaultProps
-                    Node v lst ->
-                        let props = currentProps v in
-                            { props | collapsed = not v.collapsed }
         in
-            { model | bookmarks = updateNode model.bookmarks path updateProps } ! []
+            { model | bookmarks = updateNode model.bookmarks path (\n -> setCollapsed (not n.collapsed) n) } ! []
     BoxChecked id ->
         let
             _ = Debug.log "checked boxes" model.checkedNodes
@@ -513,29 +512,45 @@ update msg model =
                 [] -> Empty
                 _ -> (getNodeAtPath model.bookmarks path)
             _ = Debug.log "Toggling Node " node
-            updateProps =
-                case node of
-                    Empty ->
-                        defaultProps
-                    Node v lst ->
-                        let props = currentProps v in
-                            { props | checked = not v.checked }
-            checkedNodes =
-                case node of
-                    Empty ->
-                        model.checkedNodes
-                    Node v lst ->
-                        Dict.insert id updateProps.checked model.checkedNodes
         in
-            {model | bookmarks = updateNode model.bookmarks path updateProps, selectedCount = model.selectedCount + 1, checkedNodes = checkedNodes } ! []
+            case node of
+                Empty ->
+                    model ! []
+                Node v lst ->
+                    let checkedNodes =
+                        Dict.insert id (not v.checked) model.checkedNodes
+                    in
+                        {model | bookmarks = updateNode model.bookmarks path (\n -> setChecked (not n.checked) n)
+                        , selectedCount = model.selectedCount + 1, checkedNodes = checkedNodes } ! []
 
-    Backup id url ->
-        ( { model | bookmarks = map (\n -> (if n.id == id then {n | loading = True } else n ) ) model.bookmarks, currentlyBackingUp = Just id }, Http.send BackupResult <| backupAddress url )
-    BackupResult (Result.Ok imgKey) ->
-        ({ model | currentlyBackingUp = Nothing } , Cmd.batch [
-                backup (Maybe.withDefault "" model.currentlyBackingUp, imgKey)
+    Backup ->
+        let ids = Dict.filter (\_ v -> v) model.checkedNodes
+        in
+            ( { model | bookmarks = map (\n ->
+                if Dict.member n.id ids then { n | loading = True } else n
+                ) model.bookmarks }
+            ,
+            Cmd.batch (
+                List.map (\id ->
+                    case getNode model.bookmarks model.bookmarkIndex id of
+                        Empty ->
+                            Cmd.none
+                        Node v _ ->
+                            case v.url of
+                                Just url ->
+                                    let _ = Debug.log "backing up " url in
+                                    Http.send (BackupResult v.id) <| backupAddress url
+                                _ ->
+                                    Cmd.none
+                    ) (Dict.keys ids)
+            )
+        )
+    BackupResult id (Result.Ok imgKey) ->
+        ( model
+        , Cmd.batch [
+                backup (id, imgKey)
             ])
-    BackupResult (Err err) ->
+    BackupResult id (Err err) ->
         let _ = Debug.log "Error backing up bookmark" err in
             (model, Cmd.none)
     Tick t ->
