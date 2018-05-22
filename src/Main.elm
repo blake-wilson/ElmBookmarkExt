@@ -67,6 +67,7 @@ type alias BookmarkNode =
 
 setBackupLink : Maybe String -> BookmarkNode -> BookmarkNode
 setBackupLink link node =
+    { node | backupLink = link }
 
 setChecked : Bool -> BookmarkNode -> BookmarkNode
 setChecked checked node =
