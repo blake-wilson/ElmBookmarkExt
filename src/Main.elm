@@ -297,6 +297,16 @@ renderNode model node =
                                     entry
                                 ]
                                 , span [ class "mdc-list-item__meta" ] [
+                                    if v.loading then
+                                        div [ attribute "role" "progressbar", class "mdc-linear-progress mdc-linear-progress--indeterminate" ]
+                                            [ div [ class "mdc-linear-progress__buffering-dots" ] []
+                                            , div [ class "mdc-linear-progress__buffer" ] []
+                                            , div [ class "mdc-linear-progress__bar mdc-linear-progress__primary-bar" ] []
+                                            , div [ class "mdc-linear-progress__bar-inner" ] []
+                                            ]
+                                    else
+                                        text ""
+                                    ,
                                     case v.backupLink of
                                         Nothing ->
                                             div [] [

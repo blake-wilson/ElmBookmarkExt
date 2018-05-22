@@ -1,7 +1,8 @@
 import {MDCIconToggle} from '@material/icon-toggle';
 import {MDCRipple} from '@material/ripple';
-import {MDCTopAppBar} from '@material/top-app-bar/index'
-import {MDCCheckbox} from '@material/checkbox'
+import {MDCTopAppBar} from '@material/top-app-bar/index';
+import {MDCCheckbox} from '@material/checkbox';
+import {MDCLinearProgress} from '@material/linear-progress';
 import { Z_DEFAULT_STRATEGY } from 'zlib';
 
 const storageKey = 'bookmarkLinks';
@@ -26,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
           new MDCCheckbox(el);
         });
       });
-      
+
       const topAppBarElement = document.querySelector('.mdc-top-app-bar');
       const topAppBar = new MDCTopAppBar(topAppBarElement);
     })
