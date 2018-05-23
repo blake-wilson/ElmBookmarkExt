@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
       bookmarksUpdating = true;
       chrome.storage.local.get(storageKey, function(bookmarkLinks) {
         if (bookmarkLinks[storageKey] === undefined) {
+          bookmarksUpdating = false;
           return; // nothing to delete
         }
         delete bookmarkLinks[storageKey][id];
