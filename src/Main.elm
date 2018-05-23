@@ -79,6 +79,17 @@ type alias BookmarkNode =
   , checked : Bool
   }
 
+type Msg =
+    HandleBookmarks (Result String (Tree BookmarkNode))
+    | HandleLinks (Result String (List (String, String)))
+    | OpenTab String
+    | Backup
+    | DeleteBackups
+    | BackupResult String (Result Http.Error String)
+    | Tick Time.Time
+    | ToggleExpand String
+    | BoxChecked String
+
 {- Setters for BookmarkNodes. These allow setting properties for
    a node without fetching the node from the tree -}
 setBackupLink : Maybe String -> BookmarkNode -> BookmarkNode
@@ -198,16 +209,6 @@ indexBookmarks t =
     in
         result
 
-type Msg =
-    HandleBookmarks (Result String (Tree BookmarkNode))
-    | HandleLinks (Result String (List (String, String)))
-    | OpenTab String
-    | Backup
-    | BackupResult String (Result Http.Error String)
-    | Tick Time.Time
-    | ToggleExpand String
-    | BoxChecked String
-
 onBookmarksClicked : msg -> Attribute msg
 onBookmarksClicked message =
     on "click" (Json.succeed message)
@@ -233,6 +234,7 @@ view model =
                                 -- show bookmark operations
                                 section [ class "mdc-top-app-bar__section mdc-top-app-bar__section--align-end", attribute "role" "toolbar" ] [
                                     span [ class "material-icons mdc-top-app-bar__action-item"
+                                    , onClick DeleteBackups
                                     , attribute "aria-label" "Delete", title "Delete selected bookmark archives"
                                     ] [ text "delete" ]
                                 ]
@@ -433,6 +435,8 @@ init =
 
 port backup : (String, String) -> Cmd msg
 
+port removeBackup : String -> Cmd msg
+
 port openTab : String -> Cmd msg
 
 port reRender : String -> Cmd msg
@@ -502,6 +506,27 @@ update msg model =
                         {model | bookmarks = updateNode model.bookmarks path (\n -> setChecked (not n.checked) n)
                         , selectedCount = model.selectedCount + 1, checkedNodes = checkedNodes } ! []
 
+    DeleteBackups ->
+        let ids = Dict.filter (\_ v -> v) model.checkedNodes
+        in
+            ( { model | bookmarks = map (\n ->
+                if Dict.member n.id ids then { n | backupLink = Nothing } else n
+                ) model.bookmarks }
+            ,
+            Cmd.batch (
+                List.map (\id ->
+                    case getNode model.bookmarks model.bookmarkIndex id of
+                        Empty ->
+                            Cmd.none
+                        Node v _ ->
+                            case v.backupLink of
+                                Just _ ->
+                                    removeBackup id
+                                _ ->
+                                    Cmd.none
+                    ) (Dict.keys ids)
+                )
+            )
     Backup ->
         let ids = Dict.filter (\_ v -> v) model.checkedNodes
         in

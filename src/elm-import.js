@@ -7,7 +7,12 @@ import { Z_DEFAULT_STRATEGY } from 'zlib';
 
 const storageKey = 'bookmarkLinks';
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    var bookmarksUpdating = false;
     var div = document.getElementById('main');
     const app = Elm.Main.embed(div);
     app.ports.reRender.subscribe(function() {
@@ -33,7 +38,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const topAppBarElement = document.querySelector('.mdc-top-app-bar');
       const topAppBar = new MDCTopAppBar(topAppBarElement);
-    })
+    });
+    app.ports.removeBackup.subscribe(async function(id) {
+      console.log('removing backup with id', id);
+      while(bookmarksUpdating) {
+        await sleep(10);
+      }
+      bookmarksUpdating = true;
+      chrome.storage.local.get(storageKey, function(bookmarkLinks) {
+        if (bookmarkLinks[storageKey] === undefined) {
+          return; // nothing to delete
+        }
+        delete bookmarkLinks[storageKey][id];
+        chrome.storage.local.set(bookmarkLinks, function() {
+          console.log('Bookmarks are now: ', bookmarkLinks);
+          bookmarksUpdating = false;
+        });
+      });
+    });
     app.ports.openTab.subscribe(function(url) {
         console.log('opened tab at ', url);
         chrome.tabs.create({ url: url });
@@ -51,7 +73,7 @@ document.addEventListener('DOMContentLoaded', function() {
           console.log('Bookmarks are now: ', bookmarkLinks);
         });
         app.ports.handleLinks.send({[id]: link});
-      })
+      });
     });
     // Initialize bookmarks
     var tree = chrome.bookmarks.getTree(function(arr) {
