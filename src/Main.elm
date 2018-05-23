@@ -31,6 +31,20 @@ type alias Model =
 (!!) : List a -> Int -> Maybe a
 (!!) xs n  = List.head (List.drop n xs)
 
+{-
+  TreePath is a path to a node in a tree given by its traversal order
+  with respect to position of children nodes in each non-leaf node's children
+  list. The root node is given by the empty path ([]).
+  e.g. in the following tree, the node 'I' would be reached with the TreePath
+  [0, 0, 2]
+        A
+      /   \
+     B     C
+    /     / \
+   D     E   F
+  /|\     \
+ G H I     J
+-}
 type alias TreePath = List Int
 
 type Tree a
@@ -65,6 +79,8 @@ type alias BookmarkNode =
   , checked : Bool
   }
 
+{- Setters for BookmarkNodes. These allow setting properties for
+   a node without fetching the node from the tree -}
 setBackupLink : Maybe String -> BookmarkNode -> BookmarkNode
 setBackupLink link node =
     { node | backupLink = link }
@@ -81,9 +97,6 @@ setCollapsed : Bool -> BookmarkNode -> BookmarkNode
 setCollapsed collapsed node =
     { node | collapsed = collapsed }
 
-type alias IDNode =
-    { id : String }
-
 map : (a -> b) -> Tree a -> Tree b
 map f tree =
     case tree of
@@ -91,9 +104,12 @@ map f tree =
       Node v lst ->
           Node (f v) (List.map (\n -> (map f n) ) lst)
 
--- foldBranch : (List b -> b)
--- foldLeaf : a -> b
-
+{-
+  foldTree folds the given Tree into a value.
+  Type signatures for functions to fold branches and leaves respectively are the following:
+  foldBranch : (List b -> b)
+  foldLeaf : a -> b
+ -}
 foldTree : (List b -> b) -> (a -> b) -> (Tree a) -> b-> b
 foldTree foldBranch foldLeaf tree init =
     case tree of
@@ -110,10 +126,6 @@ branchToDict : (List (Dict String TreePath)) -> Dict String TreePath
 branchToDict lst =
     List.foldl (\acc d -> Dict.union d acc) Dict.empty lst
 
-leafAccum : BookmarkNode -> Dict String TreePath
-leafAccum n =
-    Dict.singleton ("test" ++ n.id) [1,2,3]
-
 branchToDict2 : (List (Dict String TreePath, Tree BookmarkNode)) -> ((Dict String TreePath), Tree BookmarkNode)
 branchToDict2 lst =
     let nodes =
@@ -122,13 +134,9 @@ branchToDict2 lst =
     in
     (branchToDict nodes, tree)
 
-leafAccum2 : (BookmarkNode, Tree BookmarkNode) -> (Dict String TreePath, Tree BookmarkNode)
-leafAccum2 (n, tree) =
+leafAccum : (BookmarkNode, Tree BookmarkNode) -> (Dict String TreePath, Tree BookmarkNode)
+leafAccum (n, tree) =
     (Dict.singleton n.id (getNodePath tree n.id [] 0), tree)
-
--- leafToDict : (BookmarkNode -> Dict String TreePath)
--- leafToDict n =
---     Dict.singleton n.id (getNodePath n n.id [] 0)
 
 getNodeAtPath : Tree BookmarkNode -> TreePath -> Tree BookmarkNode
 getNodeAtPath tree path =
@@ -145,7 +153,6 @@ getNodeAtPath tree path =
                             getNodeAtPath n xs
         [] ->
             tree
-
 
 getNodePath : Tree BookmarkNode -> String -> TreePath -> Int -> TreePath
 getNodePath tree id path index =
@@ -187,11 +194,9 @@ indexBookmarks : Tree BookmarkNode -> Dict String TreePath
 indexBookmarks t =
     let mappedTree =
         map (\n -> (n, t)) t
-        (result, _) = foldTree branchToDict2 leafAccum2 mappedTree (Dict.empty, t)
+        (result, _) = foldTree branchToDict2 leafAccum mappedTree (Dict.empty, t)
     in
         result
-        -- fold (\n -> Dict.insert n.id (getNodePath t n.id [] 0) d ) Dict.empty t
-
 
 type Msg =
     HandleBookmarks (Result String (Tree BookmarkNode))
@@ -306,13 +311,10 @@ renderNode model node =
                                                 span [ class "mdc-linear-progress__bar-inner" ] []
                                             ]
                                             ]
-                                    --     text ""
-                                    -- ,
                                     ,
                                     case v.backupLink of
                                         Nothing ->
                                             div [] [
-                                                -- span [] [text "Not backed up"]
                                                 div [ class "mdc-checkbox" ] [
                                                     input [ type_ "checkbox", class "mdc-checkbox__native-control"
                                                     , checked v.checked, onClick (BoxChecked v.id) ] []
@@ -326,11 +328,6 @@ renderNode model node =
                                                             ]
                                                     ]
                                             ]
-                                            -- button [ class "ripple-btn mdc-button__icon mdc-button"
-                                            --         , disabled (if v.loading then True else False)
-                                            --         , onClick <| Backup v.id (Maybe.withDefault "" v.url) ] [
-                                            --     backupIcon
-                                            -- ]
                                         Just s3Key ->
                                             div [] [
                                                 a [href <| getS3URL s3Key, target "_blank"] [text "Open backup"]
@@ -374,8 +371,6 @@ main = program
     update = update,
     subscriptions = subscriptions
   }
-
--- subscriptions
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -456,32 +451,6 @@ getNode tree pathDict id =
     in
         getNodeAtPath tree path
 
-
--- setProps : Tree BookmarkNode -> List String -> (BookmarkNode -> UpdateProps) -> Tree BookmarkNode
--- setProps model toUpdate updateF =
---     List.map (\id ->
---     let
---         path = (Maybe.withDefault [] <| Dict.get id model.bookmarkIndex)
---         node = case path of
---             [] -> Empty
---             _ -> (getNodeAtPath model.bookmarks path)
---                     updateProps =
---         case node of
---             Empty ->
---                 defaultProps
---             Node v lst ->
---                 let props = currentProps v in
---                     { props | updating = True }
---     in
---         case node of
---             Empty ->
---                 Cmd.none
---             Node v _ ->
---                 updateF v
---     ) ids
---     in
---         { model | bookmarks = }
-
 -- TODO: refactor the map list iteration in favor of id-indexed Dict
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -494,7 +463,7 @@ update msg model =
          , bookmarkIndex = indexBookmarks bookmarks
          , rerender = True}, Cmd.none)
     HandleBookmarks (Err err) ->
-        let _ = Debug.log "Uh oh" err in
+        let _ = Debug.log "Error setting bookmarks" err in
             model ! []
     HandleLinks (Ok [(a,b)]) ->
         let
@@ -507,7 +476,7 @@ update msg model =
                     |> setBackupLink link
                 ) } ! []
     HandleLinks (Ok _) ->
-        model ! [] -- should be unreachable
+        model ! [] -- should be unreachable (indicates incorrect payload sent from JS)
     HandleLinks (Err err) ->
         let _ = Debug.log "Error handling links" err in
             model ! []
@@ -542,7 +511,9 @@ update msg model =
                         Just _ ->
                             False
                         _ ->
-                            True } else n
+                            True }
+                else
+                    n
                 ) model.bookmarks }
             ,
             Cmd.batch (
