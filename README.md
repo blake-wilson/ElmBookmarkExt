@@ -19,3 +19,6 @@ gulp dev
 Navigate to `chrome://extensions/` and select `LOAD UNPACKED`.
 In the file selection dialog, navigate to the `dist` directory of this repository and choose
 `Select`.
+
+## Demo
+![Elm Bookmark Extension](elmext-demo.gif)
