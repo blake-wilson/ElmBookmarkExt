@@ -131,7 +131,7 @@ foldTree foldBranch foldLeaf tree init =
                 [] ->
                     foldLeaf v
                 _ ->
-                    foldBranch ([foldLeaf v] ++ List.map (\t -> foldTree foldBranch foldLeaf t init) lst)
+                    foldBranch ((foldLeaf v)::List.map (\t -> foldTree foldBranch foldLeaf t init) lst)
 
 branchToDict : (List (Dict String TreePath)) -> Dict String TreePath
 branchToDict lst =
