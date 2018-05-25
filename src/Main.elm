@@ -439,7 +439,7 @@ port removeBackup : String -> Cmd msg
 
 port openTab : String -> Cmd msg
 
-port reRender : Cmd msg
+port reRender : () -> Cmd msg
 
 port handleBookmarks : (Json.Value -> msg) -> Sub msg
 
@@ -569,6 +569,6 @@ update msg model =
             (model, Cmd.none)
     Tick t ->
         if model.rerender then
-            ({ model | rerender = False })
+            ({ model | rerender = False }, reRender ())
         else
             model ! []
